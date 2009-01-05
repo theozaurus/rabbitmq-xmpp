@@ -222,7 +222,7 @@ do_route(From, To, {xmlelement, "message", _, _} = Packet) ->
 			_ ->
 			    rabbit_exchange:simple_publish(false, false, ?XNAME(XNameBin), RKBin,
 							   <<"text/plain">>,
-							   list_to_binary(Body))
+							   list_to_binary(xml:element_to_string(jlib:replace_from(From, Packet))))
 		    end
 	    end
     end,
