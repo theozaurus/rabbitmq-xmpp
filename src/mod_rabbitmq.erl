@@ -228,7 +228,7 @@ do_route(From, To, {xmlelement, "message", _, _} = Packet) ->
     end,
     ok;
 %% FIX: This does not currently match the iq query packets, so service discovery does not work
-do_route(From, To, {xmlelement, "iq", _, [xmlelement, "query", _, _]} = Packet) ->
+do_route(From, To, {xmlelement, "iq", _, [xmlelement, "query", _, _] = Els0} = Packet) ->
     Els = xml:remove_cdata(Els0),
     IqId = xml:get_tag_attr_s("id", Packet),
     case xml:get_tag_attr_s("type", Packet) of
