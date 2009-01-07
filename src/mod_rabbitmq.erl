@@ -227,7 +227,8 @@ do_route(From, To, {xmlelement, "message", _, _} = Packet) ->
 	    end
     end,
     ok;
-do_route(From, To, {xmlelement, "iq", _, Els0} = Packet) ->
+%% FIX: This does not currently match the iq query packets, so service discovery does not work
+do_route(From, To, {xmlelement, "iq", _, [xmlelement, "query", _, _]} = Packet) ->
     Els = xml:remove_cdata(Els0),
     IqId = xml:get_tag_attr_s("id", Packet),
     case xml:get_tag_attr_s("type", Packet) of
@@ -237,10 +238,23 @@ do_route(From, To, {xmlelement, "iq", _, Els0} = Packet) ->
 			      [Other, From, To, Packet])
     end,
     ok;
-do_route(_From, _To, _Packet) ->
-    ?INFO_MSG("**** DROPPED~n~p~n~p~n~p", [_From, _To, _Packet]),
-    ok.
-
+do_route(From, To, Packet) ->
+  {XNameBin, RKBin} = jid_to_xname(To),
+  case To#jid.luser of
+	"" ->
+    ?WARNING_MSG("Ignoring message",[]);
+	_ ->
+	  case xml:get_tag_attr_s("type", Packet) of
+		  "error" ->
+		    ?ERROR_MSG("Received error message~n~p -> ~p~n~p", [From, To, Packet]);
+		  _ ->
+		    rabbit_exchange:simple_publish(false, false, ?XNAME(XNameBin), RKBin,
+				  <<"text/plain">>,
+					  list_to_binary(xml:element_to_string(jlib:replace_from(From, Packet))))
+	    end
+    end,
+  ok.
+  
 reply_iq(From, To, IqId, {OkOrError, Els}) ->
     ?DEBUG("IQ reply ~p~n~p ->~n~p~n~p", [IqId, From, To, Els]),
     TypeStr = case OkOrError of
