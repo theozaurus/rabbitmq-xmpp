@@ -148,64 +148,6 @@ do_route(#jid{lserver = FromServer} = From,
     ?WARNING_MSG("Tight presence loop between~n~p and~n~p~nbroken.",
 		 [From, To]),
     ok;
-do_route(From, #jid{luser = ""} = To, {xmlelement, "presence", _, _} = Packet) ->
-    case xml:get_tag_attr_s("type", Packet) of
-	"subscribe" ->
-	    send_presence(To, From, "unsubscribed");
-	"subscribed" ->
-	    send_presence(To, From, "unsubscribe"),
-	    send_presence(To, From, "unsubscribed");
-	"unsubscribe" ->
-	    send_presence(To, From, "unsubscribed");
-
-	"probe" ->
-	    send_presence(To, From, "");
-
-	_Other ->
-	    ?INFO_MSG("Other kind of presence for empty-user JID~n~p", [Packet])
-    end,
-    ok;
-do_route(From, To, {xmlelement, "presence", _, _} = Packet) ->
-    QNameBin = jid_to_qname(From),
-    {XNameBin, RKBin} = jid_to_xname(To),
-    case xml:get_tag_attr_s("type", Packet) of
-	"subscribe" ->
-	    case rabbit_exchange:lookup(?XNAME(XNameBin)) of
-		{ok, _X} -> send_presence(To, From, "subscribe");
-		{error, not_found} -> send_presence(To, From, "unsubscribed")
-	    end;
-	"subscribed" ->
-	    case check_and_bind(XNameBin, RKBin, QNameBin) of
-		true ->
-		    send_presence(To, From, "subscribed"),
-		    send_presence(To, From, "");
-		false ->
-		    send_presence(To, From, "unsubscribed"),
-		    send_presence(To, From, "unsubscribe")
-	    end;
-	"unsubscribe" ->
-	    maybe_unsub(From, To, XNameBin, RKBin, QNameBin),
-	    send_presence(To, From, "unsubscribed");
-	"unsubscribed" ->
-	    maybe_unsub(From, To, XNameBin, RKBin, QNameBin);
-
-	"" ->
-	    start_consumer(QNameBin, From, RKBin, To#jid.lserver, extract_priority(Packet));
-	"unavailable" ->
-	    stop_consumer(QNameBin, From, RKBin, false);
-
-	"probe" ->
-	    case is_subscribed(XNameBin, RKBin, QNameBin) of
-		true ->
-		    send_presence(To, From, "");
-		false ->
-		    ok
-	    end;
-
-	_Other ->
-	    ?INFO_MSG("Other kind of presence~n~p", [Packet])
-    end,
-    ok;
 do_route(From, To, {xmlelement, "message", _, _} = Packet) ->
     case xml:get_subtag_cdata(Packet, "body") of
 	"" ->
